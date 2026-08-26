@@ -160,6 +160,15 @@ docs/                      results, raw data, landmine ledger
 - **Quality evals** — perplexity and rare-phrase completion, where an n-gram
   table should matter most; our 12-task + needle coverage is necessary, not
   sufficient.
+- **NGRAM/prompt-lookup speculation** — tested (relax the ngram guard in
+  `_prepare_ple_batch`, then `--speculative-algorithm NGRAM`): runs
+  corruption-free but loses to NEXTN here (11.8 vs 18.5 tok/s free-form;
+  35.1 vs ~30 on verbatim reproduction), because the QSA compressed index
+  ring caps `speculative_num_draft_tokens` at the compress ratio (4).
+  Reworking that ring to hold multiple pending groups would unlock 16-token
+  repetition drafts (~97 tok/s territory, per
+  [0xBakeer/qwen38-flash-next-spark](https://github.com/0xBakeer/qwen38-flash-next-spark)
+  on llama.cpp) — the single highest-leverage decode item left.
 - **2-Spark TP2** with the uncompressed table, as an A/B quality reference.
 
 ## Credits
