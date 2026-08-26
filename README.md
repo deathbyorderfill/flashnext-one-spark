@@ -1,8 +1,16 @@
 # Qwen3.8-Flash-Next 180B on ONE DGX Spark
 
-Run **Qwen3.8-Flash-Next** — a 180B-parameter MoE whose reference deployment
-requires **two GB300s** — on a **single NVIDIA DGX Spark** (GB10, 128 GB unified
-memory), at the **full 262,144-token context**, with speculative decoding.
+Qwen3.8-Flash-Next officially needs **two GB300s**. This repo runs it on **one
+desk-side DGX Spark** — full 262,144-token context, speculative decoding,
+~27 tok/s — by compressing the one part of the model no quantizer can touch:
+its **51 GB n-gram embedding table**.
+
+The unlock isn't a better quantizer. The table is a *gather*, not a matmul, so
+every 4-bit toolchain skips it and the reference runtime inflates it to 102 GB
+of BF16 at load. Treat it as what it is — a hash-addressed memory with a
+learned gate behind it — and it compresses 4× with **no training, in six
+minutes**, and the model doesn't just survive: it stopped failing two of our
+benchmark tasks.
 
 ```
 context     262,144 tokens          decode      ~27 tok/s (NEXTN spec decode)
@@ -13,15 +21,14 @@ weights     ~97 GB resident         checkpoint  135 GB (RadixArk NVFP4)
 Validated on this exact build: exact needle recall from a **222,527-token**
 haystack, and **12/12** on an executed-code benchmark.
 
-## Why this shouldn't fit — and how it does
+## The problem: 135 GB into 115
 
 The [RadixArk NVFP4 checkpoint](https://huggingface.co/RadixArk/Qwen3.8-Flash-Next-NVFP4)
-is 135 GB against ~115 GB usable on a Spark. The blocker is the model's
-**PLE n-gram embedding table**: 320,001,536 rows x 160 dims of FP8 = **51.2 GB**
-that no quantization toolchain touches, because an embedding is a *gather*, not
-a GEMM — and the reference runtime dequantizes it to BF16 (102 GB!) at load.
-
-This repo makes it fit twice over:
+is already 4-bit everywhere 4-bit can reach, and it is *still* 135 GB against
+~115 GB usable on a Spark — because 51.2 GB of it is the PLE table
+(320,001,536 rows × 160 dims of FP8) that quantizers structurally cannot
+handle. Two independent solutions here, both as bind-mount patches over the
+stock cookbook image — pick either:
 
 **1. Load-time NVFP4 packing** (`PLE_MODE=packed`, 28.8 GB)
 Each of the 128 FP8 shards is quantized to packed NVFP4 (4-bit E2M1 codes +
