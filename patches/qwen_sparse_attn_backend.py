@@ -1770,22 +1770,24 @@ class QwenSparseAttnBackend(AttentionBackend):
             qh = q
         Hq = qh.shape[1]
         Hkv = k_buffer.shape[1]
-        kh = k_g.permute(0, 2, 1, 3).to(qh.dtype)
-        vh = v_g.permute(0, 2, 1, 3).to(qh.dtype)
-        if Hkv != Hq:
-            rep = Hq // Hkv
-            kh = kh.repeat_interleave(rep, dim=1)
-            vh = vh.repeat_interleave(rep, dim=1)
+        # Grouped-GQA bmm attention: for q_len==1 an explicit bmm+softmax
+        # beats the general FMHA kernel (~0.9ms -> ~0.1ms/call on GB10) and
+        # avoids materializing repeated KV heads. Profiled: the SDPA path was
+        # 9.7% of decode GPU time.
+        rep = Hq // Hkv
         nvalid = valid.sum(-1)
-        safe_mask = valid.clone()
-        safe_mask[:, 0] |= nvalid == 0
-        out = _F.scaled_dot_product_attention(
-            qh.unsqueeze(2),
-            kh,
-            vh,
-            attn_mask=safe_mask.view(batch, 1, 1, topk),
-            scale=layer.scaling,
-        ).squeeze(2)
+        kf = k_g.to(qh.dtype).permute(0, 2, 3, 1).reshape(batch * Hkv, -1, topk)
+        vf = v_g.to(qh.dtype).permute(0, 2, 1, 3).reshape(batch * Hkv, topk, -1)
+        qf = qh.view(batch, Hkv, rep, -1).reshape(batch * Hkv, rep, -1)
+        scores = torch.baddbmm(
+            torch.zeros(1, 1, 1, dtype=qh.dtype, device=qh.device),
+            qf, kf, alpha=layer.scaling,
+        )  # [B*Hkv, rep, topk]
+        neg = torch.finfo(scores.dtype).min
+        mask = valid.view(batch, 1, 1, topk).expand(batch, Hkv, 1, topk)
+        scores = scores.view(batch, Hkv, rep, topk).masked_fill(~mask, neg)
+        probs = scores.float().softmax(-1).to(qh.dtype).view(batch * Hkv, rep, topk)
+        out = torch.bmm(probs, vf).view(batch, Hkv, rep, -1).reshape(batch, Hq, -1)
         out = torch.where(nvalid.view(batch, 1, 1) > 0, out, torch.zeros_like(out))
         return out.reshape(q.shape[0], -1)
 
