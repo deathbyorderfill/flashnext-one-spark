@@ -1,0 +1,109 @@
+{
+  "sections": {
+    "depth": [
+      {
+        "depth": "8k",
+        "prompt_tokens": 8088,
+        "ttft_s": 5.57,
+        "prefill_toks": 1452.0,
+        "decode_toks": 26.09,
+        "cached": null
+      },
+      {
+        "depth": "32k",
+        "prompt_tokens": 32409,
+        "ttft_s": 14.04,
+        "prefill_toks": 2309.0,
+        "decode_toks": 17.92,
+        "cached": null
+      },
+      {
+        "depth": "128k",
+        "prompt_tokens": 129503,
+        "ttft_s": 60.5,
+        "prefill_toks": 2140.0,
+        "decode_toks": 26.68,
+        "cached": null
+      }
+    ],
+    "concurrency": [
+      {
+        "streams": 1,
+        "per_stream_decode": 17.77,
+        "aggregate_decode": 17.8,
+        "wall_s": 16.6,
+        "scaling": 1.0
+      },
+      {
+        "streams": 4,
+        "per_stream_decode": 7.83,
+        "aggregate_decode": 31.3,
+        "wall_s": 66.1,
+        "scaling": 1.8
+      },
+      {
+        "streams": 8,
+        "per_stream_decode": 8.93,
+        "aggregate_decode": 71.5,
+        "wall_s": 135.4,
+        "scaling": 4.0
+      }
+    ],
+    "prefix": [
+      {
+        "depth": "8k",
+        "cold_prefill": 2314.0,
+        "warm_prefill": 10152.0,
+        "warm_cached": null,
+        "ratio": 4.4
+      },
+      {
+        "depth": "32k",
+        "cold_prefill": 2306.0,
+        "warm_prefill": 64399.0,
+        "warm_cached": null,
+        "ratio": 27.9
+      },
+      {
+        "depth": "128k",
+        "cold_prefill": 2145.0,
+        "warm_prefill": 143465.0,
+        "warm_cached": null,
+        "ratio": 66.9
+      }
+    ],
+    "effort": [
+      {
+        "variant": "default (thinking on)",
+        "out_tok": 3541,
+        "reasoning_tok": null,
+        "time_to_answer_s": 149.4,
+        "ttft_s": 0.62,
+        "decode_toks": 23.79,
+        "correct": true,
+        "answer_tail": "40 seconds.\n\nExact meeting time: 10:36:40  \nTo HH:MM (nearest minute): **10:37**"
+      },
+      {
+        "variant": "medium",
+        "out_tok": 1210,
+        "reasoning_tok": null,
+        "time_to_answer_s": 43.64,
+        "ttft_s": 0.31,
+        "decode_toks": 27.9,
+        "correct": false,
+        "answer_tail": "{ s} = 10\\!:\\!36\\!:\\!40$$\n\nRounded to the nearest minute:\n\n$$\\boxed{10\\!:\\!37}$$"
+      },
+      {
+        "variant": "thinking off",
+        "out_tok": 981,
+        "reasoning_tok": null,
+        "time_to_answer_s": 34.35,
+        "ttft_s": 0.22,
+        "decode_toks": 28.71,
+        "correct": true,
+        "answer_tail": " is $10:36.66$. Rounding to the nearest minute gives 10:37.)*\n\n**Answer:**\n10:37"
+      }
+    ]
+  },
+  "total_s": 629.5
+}

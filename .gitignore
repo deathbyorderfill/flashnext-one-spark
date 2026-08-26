@@ -1,0 +1,4 @@
+# HashK artifact (12.8 GB) -- build with tools/build_hashk_ple.py
+ple_hashk_*.pt
+__pycache__/
+*.pyc
