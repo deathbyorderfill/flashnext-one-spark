@@ -68,7 +68,7 @@ docker run -d --name flashnext --gpus all --network host --ipc=host --shm-size 3
     --chunked-prefill-size 2048 --max-running-requests 8 --max-mamba-cache-size 12 \
     --context-length "$CTX" --mem-fraction-static "$MEM_FRACTION" \
     --default-chat-template-kwargs "$KWARGS" \
-    --reasoning-parser qwen3 \
+    --reasoning-parser qwen3 --tool-call-parser qwen3_coder \
     "${SPEC_FLAGS[@]}" \
     --host 0.0.0.0 --port "$PORT"
 
