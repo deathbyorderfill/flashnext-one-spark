@@ -1,6 +1,6 @@
 # Qwen3.8-Flash-Next 180B on ONE DGX Spark
 
-Qwen3.8-Flash-Next officially needs **two GB300s**. This repo runs it on **one
+Qwen3.8-Flash-Next officially needs **two DGX Sparks**. This repo runs it on **one
 desk-side DGX Spark** — full 262,144-token context, speculative decoding,
 ~27 tok/s — by compressing the one part of the model no quantizer can touch:
 its **51 GB n-gram embedding table**.
@@ -117,8 +117,10 @@ Knobs: `THINKING=off|low|medium|xhigh`, `MEM_FRACTION`, `CTX`, `PORT`,
 
 ## The four upstream bugs this repo fixes
 
-None of this worked out of the box. The cookbook image was validated on GB300
-(SM100); the SM121 + long-context + fallback paths had never been run, and we
+None of this worked out of the box. The reference deployment splits the model
+across two Sparks with tensor parallelism, where each device carries half the
+weights and different kernel paths run. This repo's single-device,
+long-context, fallback-heavy configuration had never been exercised, and we
 hit four genuine bugs — each shipped here as a bind-mounted patched file
 (`patches/`), with the anchored-edit generators that document the exact diffs
 (`patches/generators/`):
