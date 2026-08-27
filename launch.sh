@@ -65,10 +65,10 @@ docker run -d --name flashnext --gpus all --network host --ipc=host --shm-size 3
     --quantization modelopt_fp4 --fp4-gemm-backend flashinfer_cutlass \
     --kv-cache-dtype fp8_e4m3 --page-size 64 \
     --mamba-scheduler-strategy extra_buffer --mamba-track-interval 64 \
-    --chunked-prefill-size 2048 --max-running-requests 8 --max-mamba-cache-size 12 \
+    --chunked-prefill-size 8192 --max-prefill-tokens 32768 --max-running-requests 8 --max-mamba-cache-size 12 \
     --context-length "$CTX" --mem-fraction-static "$MEM_FRACTION" \
     --default-chat-template-kwargs "$KWARGS" \
-    --reasoning-parser qwen3 --tool-call-parser qwen3_coder \
+    --reasoning-parser qwen3 --tool-call-parser qwen3_coder --strip-thinking-cache \
     "${SPEC_FLAGS[@]}" \
     --host 0.0.0.0 --port "$PORT"
 
