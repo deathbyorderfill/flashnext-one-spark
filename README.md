@@ -2,7 +2,7 @@
 
 Qwen3.8-Flash-Next officially needs **two DGX Sparks**. This repo runs it on **one
 desk-side DGX Spark** — full 262,144-token context, speculative decoding,
-~27 tok/s — by compressing the one part of the model no quantizer can touch:
+27-46 tok/s — by compressing the one part of the model no quantizer can touch:
 its **51 GB n-gram embedding table**.
 
 The unlock isn't a better quantizer. The table is a *gather*, not a matmul, so
@@ -13,7 +13,7 @@ minutes**, and the model doesn't just survive: it stopped failing two of our
 benchmark tasks.
 
 ```
-context     262,144 tokens          decode      ~27 tok/s (NEXTN spec decode)
+context     262,144 tokens          decode      27-46 tok/s (NEXTN spec)
 prefill     2,000+ tok/s cold       warm cache  up to 143,465 tok/s (67x)
 weights     ~97 GB resident         checkpoint  135 GB (RadixArk NVFP4)
 ```
@@ -66,25 +66,39 @@ Measured on one GB10 DGX Spark, this repo's default config. Full methodology in
 
 | Depth | Tokens | TTFT | Prefill | Decode |
 |---|---|---|---|---|
-| 8k | 8,088 | 5.57 s | 1,452 tok/s | 26.1 tok/s |
-| 32k | 32,409 | 14.04 s | 2,309 tok/s | 17.9 tok/s |
-| 128k | 129,503 | 60.5 s | 2,140 tok/s | 26.7 tok/s |
+| 8k | 8,121 | 5.05 s | 1,608 tok/s | 31.6 tok/s |
+| 32k | 32,541 | 15.93 s | 2,043 tok/s | 27.2 tok/s |
+| 128k | 129,370 | 55.46 s | 2,333 tok/s | **46.4 tok/s** |
 
 **Prefix cache (radix + DeltaNet state checkpoints)**
 
 | Depth | Cold | Warm | Ratio |
 |---|---|---|---|
-| 8k | 2,314 tok/s | 10,152 tok/s | 4.4x |
-| 32k | 2,306 tok/s | 64,399 tok/s | 27.9x |
-| 128k | 2,145 tok/s | 143,465 tok/s | **66.9x** |
+| 8k | 2,578 tok/s | 8,275 tok/s | 3.2x |
+| 32k | 2,587 tok/s | 133,240 tok/s | 51.5x |
+| 128k | 2,482 tok/s | 139,194 tok/s | **56.1x** |
+
+**v1 → v2: what one profiling pass bought** (grouped-bmm QSA gather, 8k prefill
+chunks, thinking-stripped prefix cache — same suite before/after)
+
+| Metric | v1 | v2 | Change |
+|---|---|---|---|
+| Decode @ 8k | 26.1 | 31.6 tok/s | +21% |
+| Decode @ 32k | 17.9 | 27.2 tok/s | +52% |
+| Decode @ 128k | 26.7 | **46.4 tok/s** | **+74%** |
+| Aggregate, 4 streams | 31.3 | 96.3 tok/s | 3.1x |
+| Aggregate, 8 streams | 71.5 | 157.1 tok/s | 2.2x |
+| Concurrency scaling | 4.0x | 6.5x | — |
+| Warm prefill @ 32k | 64,399 | 133,240 tok/s | 2.1x |
+| Decode, effort variants | 24–29 | ~34–35 tok/s | +25–45% |
 
 **Reasoning effort** (this build honors per-request `reasoning_effort`)
 
 | Variant | Out tok | Time to answer | Decode | Correct |
 |---|---|---|---|---|
-| default (thinking on) | 3,541 | 149.4 s | 23.8 tok/s | yes |
-| medium | 1,210 | 43.6 s | 27.9 tok/s | yes |
-| thinking off | 981 | 34.4 s | 28.7 tok/s | yes |
+| default (thinking on) | 1,220 | 35.3 s | 34.8 tok/s | yes |
+| medium | 1,146 | 33.1 s | 34.9 tok/s | yes |
+| thinking off | 1,684 | 49.4 s | 34.2 tok/s | yes |
 
 ## Quickstart
 
