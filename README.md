@@ -186,6 +186,23 @@ docs/                      results, raw data, landmine ledger
 - **Quality evals** — perplexity and rare-phrase completion, where an n-gram
   table should matter most; our 12-task + needle coverage is necessary, not
   sufficient.
+- **QSA draft-width cap lifted** (`SGLANG_QSA_RING_WINDOW`, off by default) — the
+  QSA pending ring keyed drafts by `pos % compress_ratio`, hard-capping
+  `speculative_num_draft_tokens` at 4. `patches/qsa_metadata.py` +
+  `patches/qsa_kv_pool.py` decouple a wider ring *window* (multiple of the ratio)
+  from the compression ratio, so drafts of any width run collision-free
+  (verified: no corruption, exact needle recall). It is a **workload knob, not a
+  free speedup** — the stock MTP draft head is tuned for ~4 tokens, so wider
+  drafts only pay off on repetitive/structured output:
+
+  | draft | code | free-form | verbatim-repro | accept len |
+  |---|---|---|---|---|
+  | **4 (default)** | 34.2 | **19.9** | ~25 | 3.4 |
+  | 6 (`RING_WINDOW=12`) | 34.0 | 18.1 | **33.6** | 4.35 |
+  | 8 (`RING_WINDOW=16`) | 30.4 | 15.6 | 29.9 | 4.75 |
+
+  Enable with e.g. `-e SGLANG_QSA_RING_WINDOW=12` + `--speculative-num-draft-tokens 6`
+  and mount the two files. This also unblocks NGRAM/ANPD drafting past 4 tokens.
 - **NGRAM/prompt-lookup speculation** — tested (relax the ngram guard in
   `_prepare_ple_batch`, then `--speculative-algorithm NGRAM`): runs
   corruption-free but loses to NEXTN here (11.8 vs 18.5 tok/s free-form;

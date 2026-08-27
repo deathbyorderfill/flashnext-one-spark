@@ -312,7 +312,15 @@ class QwenSparseAttnBackend(AttentionBackend):
                 "speculative_eagle_topk=1"
             )
         draft_tokens = int(getattr(spec_info, "draft_token_num", 0) or 0)
-        if draft_tokens > self.compress_ratio:
+        import os as _os
+        try:
+            _rw = int(_os.environ.get("SGLANG_QSA_RING_WINDOW", "0"))
+        except ValueError:
+            _rw = 0
+        _stride = _rw if (_rw >= self.compress_ratio and _rw % self.compress_ratio == 0) else self.compress_ratio
+        # ring holds a pending tail (< ratio) + the verify window; a window of
+        # (stride - ratio) drafts never collides mod stride.
+        if draft_tokens > _stride - self.compress_ratio:
             # The pending-group ring keys state by position % ratio; a verify
             # window wider than the ratio would collide within one forward.
             raise NotImplementedError(
