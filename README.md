@@ -106,15 +106,16 @@ Requirements: one DGX Spark (GB10/SM121), Docker + NVIDIA Container Toolkit,
 ~150 GB free disk, no desktop session hogging unified memory.
 
 ```bash
-git clone <this repo> && cd flashnext-one-spark
+git clone https://github.com/Death-By-Tokens/Qwen3.8-Flash-Next-180B-on-ONE-DGX-Spark.git
+cd Qwen3.8-Flash-Next-180B-on-ONE-DGX-Spark
 
 # 1. Build the HashK artifact (~6 min GPU; streams the checkpoint's PLE shards).
 #    Downloads the 135 GB checkpoint into $HF_CACHE first if absent.
+#    The artifact lands in the repo root as ple_hashk_R4.pt (12.8 GB, gitignored).
 docker run --rm --gpus all \
   -v ${HF_CACHE:-$HOME/.cache/huggingface}:/root/.cache/huggingface \
   -v $PWD:/out --entrypoint python3 \
   lmsysorg/sglang:qwen38flashnext /out/tools/build_hashk_ple.py
-mv ple_hashk_R4.pt .   # artifact lands in repo root (12.8 GB, gitignored)
 
 # 2. Launch (~9 min boot; ~20 min on the very first run).
 ./launch.sh
