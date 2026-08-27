@@ -169,6 +169,8 @@ patches/                   4 patched files, bind-mounted over the image
 patches/generators/        anchored-edit scripts documenting each diff
 tools/build_hashk_ple.py   builds the 12.8 GB HashK artifact from the checkpoint
 tools/bench_results_suite.py  reproduces every table above
+tools/watchdog.sh          cron watchdog: revives a dead server and detects the
+                           silent wedge (accept-len 1.00 while /health is green)
 docs/                      results, raw data, landmine ledger
 ```
 
