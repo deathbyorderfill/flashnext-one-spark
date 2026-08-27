@@ -110,7 +110,8 @@ git clone https://github.com/Death-By-Tokens/Qwen3.8-Flash-Next-180B-on-ONE-DGX-
 cd Qwen3.8-Flash-Next-180B-on-ONE-DGX-Spark
 
 # 1. Build the HashK artifact (~6 min GPU; streams the checkpoint's PLE shards).
-#    Downloads the 135 GB checkpoint into $HF_CACHE first if absent.
+#    On a cold cache this first downloads the 135 GB checkpoint into $HF_CACHE,
+#    so the initial run is dominated by the download, not the 6 min build.
 #    The artifact lands in the repo root as ple_hashk_R4.pt (12.8 GB, gitignored).
 docker run --rm --gpus all \
   -v ${HF_CACHE:-$HOME/.cache/huggingface}:/root/.cache/huggingface \
@@ -129,6 +130,12 @@ curl localhost:30000/v1/chat/completions -H 'Content-Type: application/json' -d 
 Knobs: `THINKING=off|low|medium|xhigh`, `MEM_FRACTION`, `CTX`, `PORT`,
 `PLE_MODE=packed` for the lossless-leaning mode (drops spec decode). See
 `launch.sh` header.
+
+Step 1 knobs: `HASHK_SNAPSHOT=/path/to/snapshot` uses a checkpoint you already
+have instead of the HF cache; `HASHK_NO_DOWNLOAD=1` fails with instructions
+rather than fetching; `HASHK_R` sets the compression ratio (default 4).
+If you prefer to download separately first:
+`huggingface-cli download RadixArk/Qwen3.8-Flash-Next-NVFP4`.
 
 ## The four upstream bugs this repo fixes
 

@@ -9,15 +9,21 @@ Per head h (16 heads, prime-sized vocabs):
     toward true rows (the "linear transformation" stage)
 Saves fp8 tables + bf16 W to an artifact for the runtime patch.
 """
-import json, os, sys, time
+import json, os, shutil, sys, time
 import torch
 import sympy
 from safetensors import safe_open
 
 R = int(os.environ.get("HASHK_R", "4"))
 OUT = os.environ.get("HASHK_OUT", "/out/ple_hashk_R%d.pt" % R)
-SNAP_GLOB = "/root/.cache/huggingface/hub/models--RadixArk--Qwen3.8-Flash-Next-NVFP4/snapshots"
+MODEL_ID = os.environ.get("HASHK_MODEL_ID", "RadixArk/Qwen3.8-Flash-Next-NVFP4")
+SNAPSHOT = os.environ.get("HASHK_SNAPSHOT", "")  # explicit path; skips all lookup
+HF_CACHE = os.environ.get("HF_HOME", "/root/.cache/huggingface")
+SNAP_GLOB = os.path.join(
+    HF_CACHE, "hub", "models--" + MODEL_ID.replace("/", "--"), "snapshots"
+)
 DEV = "cuda"
+CKPT_GB = 135
 
 NGRAM_BASE = 20_000_000
 HEADS = 16
@@ -59,8 +65,76 @@ def head_sizes():
     return sizes, offs, total
 
 
+def _has_index(path):
+    return bool(path) and os.path.isfile(
+        os.path.join(path, "model.safetensors.index.json")
+    )
+
+
+def resolve_snapshot():
+    """Return a checkpoint dir holding model.safetensors.index.json.
+
+    Order: explicit HASHK_SNAPSHOT, then the mounted HF cache, then download.
+    Set HASHK_NO_DOWNLOAD=1 to fail with instructions instead of fetching.
+    """
+    if SNAPSHOT:
+        if not _has_index(SNAPSHOT):
+            sys.exit(
+                f"HASHK_SNAPSHOT={SNAPSHOT} has no model.safetensors.index.json"
+            )
+        return SNAPSHOT
+
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        snapshot_download = None
+
+    if snapshot_download is not None:
+        try:
+            cached = snapshot_download(MODEL_ID, local_files_only=True)
+            if _has_index(cached):
+                return cached
+        except Exception:
+            pass  # not cached (or incomplete) -> fall through
+
+    # Manually-populated caches may not match the hub layout exactly.
+    if os.path.isdir(SNAP_GLOB):
+        for name in sorted(os.listdir(SNAP_GLOB)):
+            cand = os.path.join(SNAP_GLOB, name)
+            if _has_index(cand):
+                return cand
+
+    if snapshot_download is None or os.environ.get("HASHK_NO_DOWNLOAD"):
+        sys.exit(
+            f"{MODEL_ID} is not in the mounted HF cache ({HF_CACHE}).\n"
+            f"Fetch it first (~{CKPT_GB} GB — the same checkpoint launch.sh serves):\n"
+            f"  huggingface-cli download {MODEL_ID}\n"
+            "or point this script at an existing copy with "
+            "HASHK_SNAPSHOT=/path/to/snapshot."
+        )
+
+    free_gb = shutil.disk_usage(HF_CACHE if os.path.isdir(HF_CACHE) else "/").free / 1e9
+    if free_gb < CKPT_GB * 1.05:
+        sys.exit(
+            f"{MODEL_ID} needs ~{CKPT_GB} GB but the cache volume has only "
+            f"{free_gb:.0f} GB free. Free space or mount a bigger volume at "
+            f"{HF_CACHE}."
+        )
+
+    print(
+        f"[hashk] {MODEL_ID} not cached — downloading ~{CKPT_GB} GB into {HF_CACHE} "
+        "(resumable; launch.sh serves this same checkpoint)",
+        flush=True,
+    )
+    got = snapshot_download(MODEL_ID, max_workers=8)
+    if not _has_index(got):
+        sys.exit(f"download finished but {got} has no model.safetensors.index.json")
+    return got
+
+
 def main():
-    snap = os.path.join(SNAP_GLOB, os.listdir(SNAP_GLOB)[0])
+    snap = resolve_snapshot()
+    print(f"[hashk] checkpoint: {snap}", flush=True)
     idx = json.load(open(os.path.join(snap, "model.safetensors.index.json")))
     wmap = idx["weight_map"]
     shard_names = {}
