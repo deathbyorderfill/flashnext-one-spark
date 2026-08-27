@@ -193,6 +193,12 @@ docs/                      results, raw data, landmine ledger
   repetition drafts (~97 tok/s territory, per
   [0xBakeer/qwen38-flash-next-spark](https://github.com/0xBakeer/qwen38-flash-next-spark)
   on llama.cpp) — the single highest-leverage decode item left.
+- **Fast boot via preprocessed weights** — warm boots are ~9 min, and profiling
+  shows it is per-tensor processing, not I/O: skipping the 51 GB of PLE shard
+  reads entirely (filtered snapshot) saved only 8 s of a 480 s load. An
+  instanttensor-style dump (serialize the post-processed tensors once,
+  mmap-restore on boot) should reach ~3 min; the DeepSeek Spark image loads
+  106 GB in 150 s this way.
 - **2-Spark TP2** with the uncompressed table, as an A/B quality reference.
 
 ## Credits
