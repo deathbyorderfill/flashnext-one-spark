@@ -81,9 +81,15 @@ new_guard = '''        draft_tokens = int(getattr(spec_info, "draft_token_num", 
         except ValueError:
             _rw = 0
         _stride = _rw if (_rw >= self.compress_ratio and _rw % self.compress_ratio == 0) else self.compress_ratio
-        # ring holds a pending tail (< ratio) + the verify window; a window of
-        # (stride - ratio) drafts never collides mod stride.
-        if draft_tokens > _stride - self.compress_ratio:'''
+        # Stock ring (stride == ratio) holds one full group: drafts up to the
+        # ratio are safe (upstream behaviour). A widened ring reserves one
+        # group for the pending tail, leaving (stride - ratio) verify slots.
+        _limit = (
+            _stride - self.compress_ratio
+            if _stride > self.compress_ratio
+            else self.compress_ratio
+        )
+        if draft_tokens > _limit:'''
 assert s.count(old_guard) == 1, f"guard anchor x{s.count(old_guard)}"
 s = s.replace(old_guard, new_guard)
 # the error message references compress_ratio; leave it, it's still informative

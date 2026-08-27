@@ -318,9 +318,15 @@ class QwenSparseAttnBackend(AttentionBackend):
         except ValueError:
             _rw = 0
         _stride = _rw if (_rw >= self.compress_ratio and _rw % self.compress_ratio == 0) else self.compress_ratio
-        # ring holds a pending tail (< ratio) + the verify window; a window of
-        # (stride - ratio) drafts never collides mod stride.
-        if draft_tokens > _stride - self.compress_ratio:
+        # Stock ring (stride == ratio) holds one full group: drafts up to the
+        # ratio are safe (upstream behaviour). A widened ring reserves one
+        # group for the pending tail, leaving (stride - ratio) verify slots.
+        _limit = (
+            _stride - self.compress_ratio
+            if _stride > self.compress_ratio
+            else self.compress_ratio
+        )
+        if draft_tokens > _limit:
             # The pending-group ring keys state by position % ratio; a verify
             # window wider than the ratio would collide within one forward.
             raise NotImplementedError(
