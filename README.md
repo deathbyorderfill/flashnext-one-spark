@@ -60,7 +60,7 @@ buys **NEXTN speculative decoding** and roughly **2x decode speed**.
 
 Measured on one GB10 DGX Spark, this repo's default config. Full methodology in
 [`docs/RESULTS.md`](docs/RESULTS.md); raw data in
-[`docs/bench_results_suite.json`](docs/bench_results_suite.json).
+[`docs/bench_results_suite_v2.json`](docs/bench_results_suite_v2.json) (v1 baseline alongside).
 
 **Context depth (cold, concurrency 1)**
 
