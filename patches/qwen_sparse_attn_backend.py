@@ -49,17 +49,17 @@ _TRTLLM_SPARSE_PAGE_SIZE = 64
 def _resolve_trtllm_sparse_decode():
     """trtllm-gen paged decode for the post-gather sparse attention.
 
-    On Blackwell the FA4 cute varlen fallback runs a prefill-shaped kernel
-    at decode row counts; the trtllm-gen decode kernel over a page-aligned
-    scratch measures ~35% faster for the gather+attention pair.
+    Per-arch gate (sgl-project/sglang#36556 discussion): the trtllm-gen
+    sparse decode kernels are validated correct on SM100 and SM120, but on
+    SM121/GB10 they run without error and silently corrupt output (first
+    token right, then NaN logits). SM121 takes the varlen fallback instead,
+    which the direct-gather rewrite below makes safe.
     """
-    from sglang.srt.utils import is_sm100_supported
+    import torch
 
-    if not is_sm100_supported():
+    major, minor = torch.cuda.get_device_capability()
+    if not (major == 10 or (major, minor) == (12, 0)):
         return None
-    # sm121/GB10: flashinfer trtllm-gen decode kernels are SM100-only and
-    # silently corrupt output here -- force the (patched) varlen fallback.
-    return None
     try:
         from flashinfer.decode import trtllm_batch_decode_with_kv_cache
     except ImportError:

@@ -1,0 +1,42 @@
+[
+ {
+  "streams": 1,
+  "total_completion_tokens": 256,
+  "window_aggregate_toks": 48.3,
+  "e2e_aggregate_toks": 14.2,
+  "v2_style_sum_toks": 48.3,
+  "mean_per_stream_decode": 48.3,
+  "corrupt": 1,
+  "wall_s": 18.1
+ },
+ {
+  "streams": 2,
+  "total_completion_tokens": 512,
+  "window_aggregate_toks": 33.4,
+  "e2e_aggregate_toks": 16.6,
+  "v2_style_sum_toks": 60.9,
+  "mean_per_stream_decode": 30.5,
+  "corrupt": 2,
+  "wall_s": 30.9
+ },
+ {
+  "streams": 4,
+  "total_completion_tokens": 1024,
+  "window_aggregate_toks": 22.0,
+  "e2e_aggregate_toks": 16.4,
+  "v2_style_sum_toks": 121.3,
+  "mean_per_stream_decode": 30.3,
+  "corrupt": 4,
+  "wall_s": 62.3
+ },
+ {
+  "streams": 8,
+  "total_completion_tokens": 1681,
+  "window_aggregate_toks": 15.2,
+  "e2e_aggregate_toks": 13.3,
+  "v2_style_sum_toks": 155.1,
+  "mean_per_stream_decode": 19.4,
+  "corrupt": 6,
+  "wall_s": 126.5
+ }
+]
