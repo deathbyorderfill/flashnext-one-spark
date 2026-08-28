@@ -241,6 +241,12 @@ Operational mitigations shipped here: [`tools/watchdog.sh`](tools/watchdog.sh)
 verdict). If you serve long contexts, run the sentinel; the failure mode is
 silent.
 
+Sentinel status so far: the first scheduled probes ran during peak co-load —
+one at **0 GB free host memory with 5 GB in swap** — and came back **clean**,
+which weighs *against* the simple memory-pressure hypothesis. Current honest
+position: reproduced twice on one evening under conditions not yet isolated,
+never since, canary standing guard.
+
 ## Dead ends, documented
 
 Negative results that cost boots so you don't have to repeat them:
@@ -316,9 +322,18 @@ docs/                      results, raw data, landmine ledger
   accept length, the current decode bottleneck.
 - **Root-cause the deep-context corruption** — the repro tooling is here; the
   next step is per-layer NaN instrumentation on a poisoned boot.
-- **Fast boot via preprocessed weights** — warm boots are ~9 min and
-  processing-bound, not I/O-bound: skipping all 51 GB of PLE shard reads saved
-  only 8 s. An instanttensor-style dump should reach ~3 min.
+- **Fast boot via preprocessed weights** — attempted and **parked with a
+  mapped-out negative result** ([`experiments/fastboot/`](experiments/fastboot/)):
+  restoring all 97 GB of final tensors takes only ~70 s, but
+  `process_weights_after_loading` is both the bulk of the 9-minute boot *and*
+  the creator of load-bearing non-tensor state (padded dims, kernel runners)
+  that forward kernels require — skip it and the model IMAs even with
+  byte-perfect tensors; whole-model pickling dies on unpicklable
+  ProcessGroup/Stream handles. A real fix means serializing processing
+  *effects* (processed-checkpoint export in the quant methods) — upstream-
+  shaped work. The experiment also surfaced that 276 of 2,198 tensors are
+  views into shared storage, and two UMA landmines (page-cache vs GPU-pool
+  competition; allocator fragmentation) documented in the experiment README.
 - **Quality evals** — perplexity and rare-phrase completion, where an n-gram
   table should matter most; our benchmark coverage is necessary, not
   sufficient.
