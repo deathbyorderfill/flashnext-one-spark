@@ -1,0 +1,9 @@
+=== steps=3 draft=6 topk=1 ===
+  vram: [N/A]
+1 stream / short           streams=1 per-stream= 28.30 aggregate= 28.30 tok/s | tokens=  400 wall= 14.4s ttft=0.33s
+2 streams / short          streams=2 per-stream= 22.54 aggregate= 45.07 tok/s | tokens=  800 wall= 18.2s ttft=0.37s
+2 streams / 4k ctx         streams=2 per-stream= 22.11 aggregate= 44.21 tok/s | tokens=  800 wall= 23.4s ttft=4.60s
+2 streams / 16k ctx        streams=2 per-stream= 22.58 aggregate= 45.16 tok/s | tokens=  800 wall= 30.3s ttft=12.49s
+  accept len: 2.66
+  accept len: 2.38
+=== steps=4 draft=8 topk=1 ===

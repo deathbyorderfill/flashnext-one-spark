@@ -415,3 +415,82 @@ Throughput is flat from 0 to 16k context — the depth cost lands in TTFT
 1 GB available, 3-6 GB swap — identical to every poison-sentinel reading over
 the preceding days, i.e. this deployment's normal operating point, not
 pressure introduced by load.
+
+
+## Why decode is ~22 tok/s/stream, and what it would take to move it
+
+An attempt to reach 40 tok/s per stream at 2 streams. It did not get there;
+the measurements below explain why, and the tooling is in `scripts/` if the
+upstream blocker is ever lifted.
+
+### The byte budget (measured from the checkpoint, not estimated)
+
+| active per decoded token | bytes | share |
+|---|---|---|
+| routed experts (NVFP4, 10 of 512 fire) | 1.43 GB | 13% |
+| **BF16 dense** (linear_attn, self_attn, lm_head, hyper-connections) | **~9.6 GB** | **87%** |
+| PLE table (NVMe mmap, sparse) | ~0 | — |
+
+The intuition that "the experts are the model" is wrong for decode. Only
+10/512 experts fire per layer, so the 73 GB of NVFP4 expert weights contribute
+1.43 GB per token, while the BF16 dense path — which NVIDIA's recipe leaves
+unquantized — dominates. **Compressing experts further (NVFP2, trellis, etc.)
+would buy ~6% decode. The dense path is the lever.**
+
+### The bandwidth ceiling
+
+At 2 streams a forward reads ~12.5 GB (dense once + experts per stream).
+Observed 45 tok/s aggregate = 9 forwards/s = **112 GB/s, 41% of the Spark's
+273 GB/s peak** — a normal efficiency for real decode once attention, KV, SSM
+state and launch overhead are included.
+
+40 tok/s/stream (80 aggregate) needs 16 forwards/s = **200 GB/s = 73%
+efficiency** at the current byte load. That is not reachable by tuning.
+Speculation depth was tested and is not the lever either: raising
+`--speculative-num-draft-tokens` 4 -> 6 left throughput flat (22.5 tok/s/stream)
+while acceptance stayed ~2.5 tokens absolute, i.e. the extra draft work is
+wasted.
+
+Cutting bytes *would* work: all-dense at 4 bpw -> 5.6 GB/forward -> ~50
+tok/s/stream at today's efficiency. Which brings us to why that is blocked.
+
+### Four loader constraints that block dense quantization
+
+Each was found by hitting it; they are listed so the next attempt starts past them.
+
+1. **Fused parameters reject packed formats.** sglang merges
+   `in_proj_qkv + in_proj_z -> in_proj_qkvz` (qwen3_5.py:448) and fuses
+   self-attn q/k/v, loading each piece as a shard sized by *logical* width.
+   NVFP4 packs 2 values/byte, so `assert param_data.shape ==
+   loaded_weight.shape` always fails. ~4.2 GB of the 9.6 GB dense path lives
+   behind this.
+2. **`quantized_layers` keys are internal prefixes, not checkpoint names.**
+   The checkpoint uses `model.language_model.layers.N...`; the runtime resolves
+   `model.layers.N...`. MIXED_PRECISION silently treats unmatched modules as
+   unquantized, so a wrong key looks like a shape crash, not a config error.
+3. **W4A16_NVFP4 rejects per-block scales on some shapes** — `o_proj` raised
+   `a Tensor with 983040 elements cannot be converted to Scalar` from its
+   [2560, 384] block-scale.
+4. **Even correctly-named declarations can stay "skipped"** —
+   `Expected 1.0, got 0.0376 in skipped ...in_proj_qkv.input_scale`, i.e. the
+   construction-time prefix differs again from `named_modules()`.
+
+Ceiling check: even if all four were solved, FP8-everywhere yields ~7.7
+GB/forward ≈ **36 tok/s/stream** — still short. Only 4-bit-everywhere reaches
+40+, and constraint #1 is precisely what forbids it. **Reaching the target
+needs an engine change (fused-parameter loader accepting packed shards), not a
+checkpoint change.**
+
+### Tooling produced (reusable)
+
+- `scripts/dense_nvfp4.py` — BF16 -> NVFP4 via modelopt's own `NVFP4QTensor`,
+  symlinking unaffected shards (only 4 of 206 hold dense GEMMs, so a conversion
+  costs minutes and a few GB rather than rewriting 135 GB).
+- `scripts/dense_fp8.py` — BF16 -> FP8 E4M3 with calibrated `input_scale`.
+- `scripts/calib_patch.py` — appends activation-amax hooks to the model file.
+  Note `--disable-cuda-graph` (a `.item()` in a hook breaks graph capture) and
+  that sglang forks: guard the atexit dump against empty writes clobbering the
+  real one, and shard the output by PID.
+- `results/calib_amax_merged.json` — measured activation amax (1.0-39.0) for
+  the 72 linear-attn modules, and the first ground-truth map of this model's
+  internal module names.
