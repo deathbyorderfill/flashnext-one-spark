@@ -451,6 +451,19 @@ Speculation depth was tested and is not the lever either: raising
 while acceptance stayed ~2.5 tokens absolute, i.e. the extra draft work is
 wasted.
 
+**Tree drafting is also unavailable**, which would otherwise be the right
+trade here: throughput = forwards/s x accept_len, and since decode is
+bandwidth-bound at 41%, compute sits idle -- `speculative-eagle-topk > 1`
+would spend that idle compute exploring multiple draft branches to raise
+accept_len (~2.5 -> ~4.4 would reach 40 tok/s/stream at identical memory
+traffic). It is explicitly unimplemented for this model:
+
+```
+NotImplementedError: Qwen4-Exp QSA MTP currently supports speculative_eagle_topk=1
+```
+
+So accept_len is pinned near 2.5 by a single-branch draft head.
+
 Cutting bytes *would* work: all-dense at 4 bpw -> 5.6 GB/forward -> ~50
 tok/s/stream at today's efficiency. Which brings us to why that is blocked.
 
