@@ -381,3 +381,37 @@ Verdict: keep this repo's v3 config in production until the SM121 kernel
 accepts fp8_e4m3 KV; that single addition would make the upstream path
 promotable and retire three of the four patches here (mmap-PLE and
 draft-unquant are features, not fixes, and would remain).
+
+
+## Benchmarking trap: how to get a fake 3x regression (2026-08-31)
+
+Measured 2-stream aggregate at **17 tok/s** on a freshly booted server, then
+**45-48 tok/s** on the same server minutes later. Nothing changed but the
+measurement. Two independent errors, both easy to make:
+
+1. **Cold PLE page cache.** The 51 GB n-gram table is NVMe-mmap'd by design.
+   A fresh server faults those pages in on the first requests: TTFT 9.5 s on a
+   *short* prompt, decode ~10 tok/s. After ~3 warmup rounds: TTFT 0.31 s,
+   decode 26 tok/s single-stream. **Always warm before benchmarking this
+   deployment** — the mmap architecture that saves the RAM makes cold numbers
+   meaningless.
+2. **Uncounted reasoning tokens.** Production defaults to thinking-on
+   (`reasoning_effort: medium`), and those tokens stream as
+   `delta.reasoning_content`, not `delta.content`. A content-only counter
+   silently undercounts generation. Count `usage.completion_tokens` from the
+   final chunk with `stream_options.include_usage`, or sum both delta fields.
+
+Warmed 2-stream numbers on the v3 production config (`scripts/bench2.py`):
+
+| test | per-stream | aggregate |
+|---|---|---|
+| 1 stream | 25.5-26.7 | 25.5-26.7 |
+| 2 streams / short | 22.5-24.3 | **45.1-48.5** |
+| 2 streams / 4k ctx | 22.6-22.8 | **45.3-45.6** |
+| 2 streams / 16k ctx | 22.4-23.3 | **44.8-46.7** |
+
+Throughput is flat from 0 to 16k context — the depth cost lands in TTFT
+(0.25 s -> 0.39 s), not decode. Steady-state memory during all of this:
+1 GB available, 3-6 GB swap — identical to every poison-sentinel reading over
+the preceding days, i.e. this deployment's normal operating point, not
+pressure introduced by load.
