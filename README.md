@@ -493,7 +493,20 @@ Each was found by hitting it; they are listed so the next attempt starts past th
    selecting the MIXED_PRECISION path for this model — which is why every
    `quantized_layers` spelling failed identically with
    `Expected 1.0, got 0.0376 in skipped ...in_proj_qkv.input_scale`.
-   **This is the root cause, and it is not fixable from the checkpoint side.**
+   Partially superseded: the mixed config was never instantiated because
+   sglang auto-detects the `quantization_config` EMBEDDED IN config.json
+   (quant_method: modelopt, quant_algo: NVFP4, 13-pattern ignore list) and
+   never reads hf_quant_config.json when that section exists. Declaring
+   MIXED_PRECISION + quantized_layers inside config.json's
+   quantization_config is the correct location.
+5. **The mixed-precision load path hard-crashes the GB10 host.** With the
+   config finally in the right place, booting the FP8-dense checkpoint took
+   the whole machine down twice in a row -- once at production memory
+   settings (0.95 / 262k) and once conservatively (0.90 / 32k). Not an OOM
+   kill inside the container: the host wedged until power-cycled. Do NOT
+   iterate on this on a production box; a rental is the venue if this is
+   ever pursued. The checkpoint (fn-fp8), calibrated scales, and config
+   pattern are all preserved for that day.
 
 Ceiling check: even if all four were solved, FP8-everywhere yields ~7.7
 GB/forward ≈ **36 tok/s/stream** — still short. Only 4-bit-everywhere reaches
