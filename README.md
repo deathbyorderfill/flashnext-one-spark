@@ -471,9 +471,16 @@ Each was found by hitting it; they are listed so the next attempt starts past th
 3. **W4A16_NVFP4 rejects per-block scales on some shapes** — `o_proj` raised
    `a Tensor with 983040 elements cannot be converted to Scalar` from its
    [2560, 384] block-scale.
-4. **Even correctly-named declarations can stay "skipped"** —
-   `Expected 1.0, got 0.0376 in skipped ...in_proj_qkv.input_scale`, i.e. the
-   construction-time prefix differs again from `named_modules()`.
+4. **The dense modules never consult the quant config at all.** Instrumenting
+   `ModelOptMixedPrecisionConfig.get_quant_method` with a print showed it is
+   called **zero times** for any prefix containing `linear_attn` or `lm_head`,
+   even though `create_qkvz_proj` passes both `quant_config` and `prefix` into
+   `MergedColumnParallelLinear`. The startup log names
+   `ModelOptNvFp4FusedMoEMethod` (from the plain FP4 config), so sglang is not
+   selecting the MIXED_PRECISION path for this model — which is why every
+   `quantized_layers` spelling failed identically with
+   `Expected 1.0, got 0.0376 in skipped ...in_proj_qkv.input_scale`.
+   **This is the root cause, and it is not fixable from the checkpoint side.**
 
 Ceiling check: even if all four were solved, FP8-everywhere yields ~7.7
 GB/forward ≈ **36 tok/s/stream** — still short. Only 4-bit-everywhere reaches
