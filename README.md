@@ -355,3 +355,29 @@ MIT for everything original here (`launch.sh`, `tools/`, generators, docs).
 Files under `patches/` are **modified copies** of sglang (Apache-2.0) and
 flash-attention (BSD-3) sources and remain under their original licenses —
 see [`NOTICE.md`](NOTICE.md).
+
+
+## v4 evaluation: upstream's native SM121 kernels (2026-08-31)
+
+Upstream (`qwen4-main-squashed`, post-Aug-28) replaced the paths this repo
+patches: a dedicated `qwen38_qsa_sm121` kernel package gated by `is_sm121()`,
+a rewritten KV compaction, and flash-attn-4 b28 fixes the TMA-O varlen bug
+(guard restored; TMA-O now gated `< sm_120`). PR #36556 / issue #36558 remain
+open; the branch simply moved past them.
+
+Tested on this box (branch tree mounted over the Aug-26 image; PLE-mmap and
+draft-unquant patches retained — both still not upstream):
+
+- **Correctness: good.** Boots, coherent, NEXTN accept 2.8–3.8/4, deep-context
+  poison probe CLEAN. The corruption class this repo's gates exist for did not
+  reproduce (single probe + one load round; not a full endurance pass).
+- **The catch: the SM121 kernel requires BF16 KV** (`expected BF16 D=256...`),
+  and fp8 KV is worth ~3× decode at depth on GB10. Controlled decomposition
+  (v3 config with only kv-cache-dtype flipped to auto): 31.6/27.2/46.4 tok/s
+  at 8k/32k/128k with fp8 → 10.6/13.6/10.3 with BF16 — identical to the new
+  kernel's numbers. **The kernel itself is speed-competitive at equal dtype.**
+
+Verdict: keep this repo's v3 config in production until the SM121 kernel
+accepts fp8_e4m3 KV; that single addition would make the upstream path
+promotable and retire three of the four patches here (mmap-PLE and
+draft-unquant are features, not fixes, and would remain).
