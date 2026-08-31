@@ -501,12 +501,18 @@ Each was found by hitting it; they are listed so the next attempt starts past th
    quantization_config is the correct location.
 5. **The mixed-precision load path hard-crashes the GB10 host.** With the
    config finally in the right place, booting the FP8-dense checkpoint took
-   the whole machine down twice in a row -- once at production memory
-   settings (0.95 / 262k) and once conservatively (0.90 / 32k). Not an OOM
-   kill inside the container: the host wedged until power-cycled. Do NOT
-   iterate on this on a production box; a rental is the venue if this is
-   ever pursued. The checkpoint (fn-fp8), calibrated scales, and config
-   pattern are all preserved for that day.
+   the whole machine down THREE times: at production memory settings
+   (0.95 / 262k), conservatively (0.90 / 32k), and again after shrinking the
+   embedded quantized_layers from 20 MB (73,728 per-expert entries) to 12 KB
+   (48 per-layer FusedMoE prefixes + 72 FP8 entries -- per-expert granularity
+   was never needed). The third crash is the diagnostic one: a liveness
+   watcher saw the host die within ~30 s of load start with 117 GB still
+   free. Not memory pressure -- a fast kernel/driver-level wedge, most
+   likely the ModelOpt FP8 weight-processing path on GB10/sm121. No config
+   change fixes that. Permanently abandoned on this hardware; a rental box
+   with a different GPU is the only venue if this is ever pursued. The
+   checkpoint (fn-fp8), calibrated scales, and the config.json declaration
+   pattern are preserved for that day.
 
 Ceiling check: even if all four were solved, FP8-everywhere yields ~7.7
 GB/forward ≈ **36 tok/s/stream** — still short. Only 4-bit-everywhere reaches
